@@ -12,13 +12,14 @@ namespace Renegade.Dev;
 /// </summary>
 public partial class AudioWatch : Node
 {
-	/// <summary>How long after a sound to look for it on the bus.</summary>
-	private const float CheckDelay = 0.08f;
+	/// <summary>How long after a sound to look for it on the bus. Phones buffer audio for a while, so this is generous.</summary>
+	private const float CheckDelay = 0.35f;
 
 	/// <summary>Below this the bus counts as silent. A quiet tap peaks around -35 dB.</summary>
 	private const float SilentDb = -60f;
 
-	private readonly System.Collections.Generic.Queue<float> _due = new();
+	private readonly System.Collections.Generic.Queue<(float Due, float Db, int Voice, float Started)> _due = new();
+	private int _details;
 	private float _clock;
 	private float _loudest = -200f;
 	private int _played;
@@ -47,13 +48,13 @@ public partial class AudioWatch : Node
 		BlackBox.Flush();
 	}
 
-	private void OnPlayed(float volumeDb)
+	private void OnPlayed(float volumeDb, int voice)
 	{
 		// Very quiet taps (tumbling pieces) can sit under the threshold; only judge real hits.
 		if (volumeDb < -24f)
 			return;
 		_played++;
-		_due.Enqueue(_clock + CheckDelay);
+		_due.Enqueue((_clock + CheckDelay, volumeDb, voice, _clock));
 	}
 
 	public override void _Process(double delta)
@@ -61,16 +62,24 @@ public partial class AudioWatch : Node
 		_clock += (float)delta;
 		float peak = Mathf.Max(AudioServer.GetBusPeakVolumeLeftDb(0, 0), AudioServer.GetBusPeakVolumeRightDb(0, 0));
 		_loudest = Mathf.Max(_loudest, peak);
-		while (_due.Count > 0 && _due.Peek() <= _clock)
+		while (_due.Count > 0 && _due.Peek().Due <= _clock)
 		{
-			_due.Dequeue();
+			var check = _due.Dequeue();
 			if (AudioServer.IsBusMute(0))
 				continue;
 			if (_loudest > SilentDb)
+			{
 				_heard++;
+			}
 			else
+			{
 				_silent++;
-			_loudest = -200f;
+				// The first few silent sounds in a session in detail, to spot a pattern.
+				if (_details++ < 25)
+					BlackBox.Write($"audio: silent sound on voice {check.Voice}, level {check.Db:0} dB, at {check.Started:0.00} s");
+			}
+			if (_due.Count == 0)
+				_loudest = -200f;
 		}
 		if (_due.Count == 0)
 			_loudest = -200f;

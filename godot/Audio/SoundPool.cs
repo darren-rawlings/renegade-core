@@ -35,19 +35,20 @@ public partial class SoundPool : Node3D
 	}
 
 	/// <summary>Raised for every sound played, with its level; <see cref="Renegade.Dev.AudioWatch"/> uses it.</summary>
-	public static event System.Action<float>? Played;
+	public static event System.Action<float, int>? Played;
 
 	/// <summary>Plays a sound at a world position. <paramref name="volumeDb"/> is added to <see cref="MasterDb"/>.</summary>
 	public void Play(AudioStream stream, Vector3 position, float volumeDb = 0f, float pitch = 1f)
 	{
-		var player = _players[_next];
+		int voice = _next;
+		var player = _players[voice];
 		_next = (_next + 1) % _players.Length;
 		player.Stream = stream;
 		player.GlobalPosition = position;
 		player.VolumeDb = volumeDb + MasterDb;
 		player.PitchScale = pitch;
 		player.Play();
-		Played?.Invoke(volumeDb);
+		Played?.Invoke(volumeDb, voice);
 	}
 
 	/// <summary>
