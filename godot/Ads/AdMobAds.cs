@@ -69,7 +69,7 @@ public sealed class AdMobAds : IAdService
 			OnInitializationComplete = _ =>
 			{
 				_ready = true;
-				DevLog.Write("ad: AdMob initialised");
+				BlackBox.Write("ad: AdMob initialised");
 				LoadInterstitial();
 				LoadRewarded();
 			},
@@ -81,7 +81,7 @@ public sealed class AdMobAds : IAdService
 		var ad = _interstitial;
 		if (ad == null)
 		{
-			DevLog.Write("ad: interstitial not ready, skipped");
+			BlackBox.Write("ad: interstitial not ready, skipped");
 			LoadInterstitial();
 			closed();
 			return;
@@ -92,6 +92,7 @@ public sealed class AdMobAds : IAdService
 			OnAdDismissedFullScreenContent = () => Finish(ad.Destroy, LoadInterstitial, closed),
 			OnAdFailedToShowFullScreenContent = _ => Finish(ad.Destroy, LoadInterstitial, closed),
 		};
+		BlackBox.Write("ad: interstitial shown");
 		ad.Show();
 	}
 
@@ -101,7 +102,7 @@ public sealed class AdMobAds : IAdService
 		if (ad == null)
 		{
 			// No ad to show (offline or none available): don't punish the player, grant the undo.
-			DevLog.Write("ad: rewarded not ready, granting reward anyway");
+			BlackBox.Write("ad: rewarded not ready, granting reward anyway");
 			LoadRewarded();
 			rewarded();
 			closed();
@@ -123,11 +124,13 @@ public sealed class AdMobAds : IAdService
 				Finish(ad.Destroy, LoadRewarded, closed);
 			},
 		};
+		BlackBox.Write("ad: rewarded shown");
 		ad.Show(new OnUserEarnedRewardListener { OnUserEarnedReward = _ => earned = true });
 	}
 
 	private static void Finish(Action destroy, Action reload, Action closed)
 	{
+		BlackBox.Write("ad: closed");
 		destroy();
 		reload();
 		closed();
@@ -142,7 +145,7 @@ public sealed class AdMobAds : IAdService
 		new InterstitialAdLoader().Load(_config.InterstitialUnitId, new AdRequest(), new InterstitialAdLoadCallback
 		{
 			OnAdLoaded = ad => _interstitial = ad,
-			OnAdFailedToLoad = error => DevLog.Write($"ad: interstitial failed to load: {error.Message}"),
+			OnAdFailedToLoad = error => BlackBox.Write($"ad: interstitial failed to load: {error.Message}"),
 		});
 	}
 
@@ -154,7 +157,7 @@ public sealed class AdMobAds : IAdService
 		new RewardedAdLoader().Load(_config.RewardedUnitId, new AdRequest(), new RewardedAdLoadCallback
 		{
 			OnAdLoaded = ad => _rewarded = ad,
-			OnAdFailedToLoad = error => DevLog.Write($"ad: rewarded failed to load: {error.Message}"),
+			OnAdFailedToLoad = error => BlackBox.Write($"ad: rewarded failed to load: {error.Message}"),
 		});
 	}
 }
