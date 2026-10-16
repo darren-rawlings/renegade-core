@@ -1,16 +1,11 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using Renegade.Core;
 using Renegade.Looks;
+using Renegade.Play;
 
 namespace Renegade.Ui;
-
-/// <summary>Interface colours; each game passes its own so the HUD matches its board.</summary>
-public sealed record HudTheme(Color Text, Color TextMuted, Color Accent, Color ButtonDark, Color Panel)
-{
-	/// <summary>Warm wood tones, the studio default.</summary>
-	public static HudTheme Warm { get; } = new(new("fff3e0"), new("d9b99b"), new("e0782a"), new("4a2c1a"), new Color("2a180e") with { A = 0.94f });
-}
 
 /// <summary>
 /// What a game's HUD offers. <see cref="LevelOnly"/> replaces the two mode buttons with a single
@@ -20,112 +15,206 @@ public sealed record HudOptions(
 	string Title,
 	string Hint,
 	bool Modes = true,
-	bool Undo = true,
 	bool StyleMenu = true,
 	string PiecesLabel = "Pieces",
 	Func<Style, string>? PieceName = null,
 	string NewGameText = "New Game",
 	string UndoText = "Undo (ad)",
-	bool LevelOnly = false);
+	bool LevelOnly = false,
+	bool Restart = true);
 
 /// <summary>
-/// The studio's game HUD, laid out for a 720×1280 portrait phone: title and score at the top, a
-/// Style button, the turn status and a fading controls hint above the bottom buttons (New Game,
-/// Undo (ad), Sound, and the two mode buttons with a difficulty pop-up). Everything that isn't a
-/// button ignores the mouse so taps reach the 3D board underneath.
+/// The studio's game HUD, laid out for a 720×1280 portrait phone. Top: the title and score, with a
+/// row of small buttons (Style and How to play on the left, Start over and Settings on the right).
+/// Bottom: the fading controls hint, the turn status, New Game, Undo (ad), and the mode buttons with
+/// a difficulty pop-up. Sound and Freeze board live in Settings, with each game's own options.
+/// Everything that isn't a button ignores the mouse so taps reach the 3D board underneath.
 /// </summary>
 public partial class GameHud : CanvasLayer
 {
 	public event Action? NewGamePressed;
 	public event Action? UndoPressed;
+	public event Action? RestartPressed;
 	public event Action<bool>? MuteToggled;
+	public event Action<bool>? FreezeToggled;
 	public event Action<GameMode, Difficulty>? ModeChosen;
 	public event Action<Style>? BoardChosen;
 	public event Action<Style>? PiecesChosen;
 
-	private readonly HudTheme _theme;
 	private Label _score = null!;
 	private Label _status = null!;
 	private Label _hint = null!;
 	private Button _newGame = null!;
 	private Button _undo = null!;
-	private Button _mute = null!;
+	private Button? _restart;
 	private Button? _pvp;
 	private Button? _pvc;
 	private Control? _difficultyPopup;
 	private Control? _menu;
+	private SettingsPanel _settings = null!;
+	private TutorialPanel? _tutorial;
+	private Button _howTo = null!;
+	private string _title = "";
 	private bool _levelOnly;
+	private int _dialogs;
 
 	public GameHud() : this(HudTheme.Warm) { }
 
 	public GameHud(HudTheme theme)
 	{
-		_theme = theme;
+		Theme = theme;
 	}
 
-	public void Build(HudOptions options, bool muted, GameMode mode, Difficulty difficulty, Style board, Style pieces)
+	public HudTheme Theme { get; }
+
+	public void Build(HudOptions options, GameSettings settings)
 	{
-		var heading = MakeLabel(options.Title.ToUpperInvariant(), 56, _theme.Text);
-		Anchor(heading, Control.LayoutPreset.TopWide, top: 40, bottom: 110);
+		_title = options.Title;
+		var heading = Widgets.Label(options.Title, 54, Theme.Text);
+		Widgets.Anchor(heading, Control.LayoutPreset.TopWide, top: 34, bottom: 104);
 		AddChild(heading);
 
-		_score = MakeLabel("", 28, _theme.TextMuted);
-		Anchor(_score, Control.LayoutPreset.TopWide, top: 108, bottom: 150);
+		_score = Widgets.Label("", 26, Theme.TextMuted);
+		Widgets.Anchor(_score, Control.LayoutPreset.TopWide, top: 100, bottom: 140);
 		AddChild(_score);
 
-		_hint = MakeLabel(options.Hint, 24, _theme.TextMuted);
-		Anchor(_hint, Control.LayoutPreset.BottomWide, top: -290, bottom: -254);
+		_hint = Widgets.Label(options.Hint, 24, Theme.TextMuted);
+		Widgets.Anchor(_hint, Control.LayoutPreset.BottomWide, top: -290, bottom: -254);
 		AddChild(_hint);
 
-		_status = MakeLabel("", 38, _theme.Text);
-		Anchor(_status, Control.LayoutPreset.BottomWide, top: -250, bottom: -196);
+		_status = Widgets.Label("", 36, Theme.Text);
+		Widgets.Anchor(_status, Control.LayoutPreset.BottomWide, top: -250, bottom: -196);
 		AddChild(_status);
 
-		_newGame = MakeButton(options.NewGameText, 30, _theme.Accent);
-		Anchor(_newGame, Control.LayoutPreset.CenterBottom, left: -150, right: 150, top: -192, bottom: -128);
+		_newGame = Widgets.Button(options.NewGameText, 30, Theme.Accent, Theme);
+		Widgets.Anchor(_newGame, Control.LayoutPreset.CenterBottom, left: -150, right: 150, top: -192, bottom: -128);
 		_newGame.Pressed += () => NewGamePressed?.Invoke();
 		_newGame.Visible = false;
 		AddChild(_newGame);
 
-		// Undo plays a rewarded ad, so the label says so.
-		_undo = MakeButton(options.UndoText, 22, _theme.ButtonDark);
-		Anchor(_undo, Control.LayoutPreset.BottomLeft, left: 20, right: 168, top: -186, bottom: -130);
+		// The rewarded-ad button says so in its label.
+		_undo = Widgets.Button(options.UndoText, 22, Theme.ButtonDark, Theme);
+		Widgets.Anchor(_undo, Control.LayoutPreset.BottomLeft, left: 20, right: 180, top: -186, bottom: -130);
 		_undo.Pressed += () => UndoPressed?.Invoke();
 		_undo.Visible = false;
 		AddChild(_undo);
 
-		_mute = MakeButton("", 22, _theme.ButtonDark);
-		Anchor(_mute, Control.LayoutPreset.BottomRight, left: -168, right: -20, top: -186, bottom: -130);
-		_mute.Pressed += () =>
-		{
-			muted = !muted;
-			SetMuteText(muted);
-			MuteToggled?.Invoke(muted);
-		};
-		SetMuteText(muted);
-		AddChild(_mute);
-
+		// The top row: small, so the board keeps the screen.
 		if (options.StyleMenu)
 		{
-			var style = MakeButton("Style", 24, _theme.ButtonDark);
-			Anchor(style, Control.LayoutPreset.TopLeft, left: 20, right: 140, top: 160, bottom: 212);
-			style.Pressed += () => _menu!.Visible = true;
+			var style = Widgets.Button("Style", 22, Theme.ButtonDark, Theme);
+			Widgets.Anchor(style, Control.LayoutPreset.TopLeft, left: 20, right: 124, top: 148, bottom: 196);
+			style.Pressed += () => Widgets.FadeIn(_menu!);
 			AddChild(style);
+		}
+		_howTo = Widgets.Button("?", 26, Theme.ButtonDark, Theme);
+		Widgets.Anchor(_howTo, Control.LayoutPreset.TopLeft, left: options.StyleMenu ? 134 : 20, right: options.StyleMenu ? 182 : 68, top: 148, bottom: 196);
+		_howTo.Pressed += () => _tutorial?.Offer();
+		_howTo.Visible = false;
+		AddChild(_howTo);
+
+		var settingsButton = Widgets.Button("Settings", 22, Theme.ButtonDark, Theme);
+		Widgets.Anchor(settingsButton, Control.LayoutPreset.TopRight, left: -144, right: -20, top: 148, bottom: 196);
+		settingsButton.Pressed += () => _settings.Open();
+		AddChild(settingsButton);
+		if (options.Restart)
+		{
+			_restart = Widgets.Button("Start over", 22, Theme.ButtonDark, Theme);
+			Widgets.Anchor(_restart, Control.LayoutPreset.TopRight, left: -290, right: -154, top: 148, bottom: 196);
+			_restart.Pressed += () => RestartPressed?.Invoke();
+			AddChild(_restart);
 		}
 
 		if (options.Modes || options.LevelOnly)
-			BuildModeButtons(mode, difficulty, options.LevelOnly);
+			BuildModeButtons(settings.Mode, settings.Difficulty, options.LevelOnly);
 
 		if (options.StyleMenu)
 		{
-			_menu = BuildMenu(board, pieces, options.PiecesLabel, options.PieceName ?? (s => Styles.Pieces(s).Name));
+			_menu = BuildMenu(settings.Board, settings.Pieces, options.PiecesLabel, options.PieceName ?? (s => Styles.Pieces(s).Name));
 			_menu.Visible = false;
 			AddChild(_menu);
 		}
+
+		_settings = new SettingsPanel(Theme);
+		_settings.AddToggle("Sound", !settings.Muted, on => MuteToggled?.Invoke(!on));
+		_settings.AddToggle("Freeze the board (no spinning)", settings.FreezeBoard, on => FreezeToggled?.Invoke(on));
+		AddChild(_settings);
 	}
 
-	/// <summary>True while a menu or pop-up is open; the board ignores taps meanwhile.</summary>
-	public bool MenuOpen => _difficultyPopup?.Visible == true || _menu?.Visible == true;
+	/// <summary>True while a menu, pop-up or dialog is open; the board ignores taps meanwhile.</summary>
+	public bool MenuOpen => _difficultyPopup?.Visible == true || _menu?.Visible == true || _settings.Visible || _tutorial?.Visible == true || _dialogs > 0;
+
+	// ---------------------------------------------------------------- Game-specific additions
+
+	/// <summary>Adds an On/Off row to Settings.</summary>
+	public void AddToggle(string label, bool value, Action<bool> changed) => _settings.AddToggle(label, value, changed);
+
+	/// <summary>Adds a row of options to Settings.</summary>
+	public void AddChoice(string label, string[] options, int selected, Action<int> chosen) => _settings.AddChoice(label, options, selected, chosen);
+
+	/// <summary>A button in the HUD's style, for a game's own controls (Roll, Check, Solve...).</summary>
+	public Button AddButton(string text, bool accent, Control.LayoutPreset preset, float left, float right, float top, float bottom, int fontSize = 24)
+	{
+		var button = Widgets.Button(text, fontSize, accent ? Theme.Accent : Theme.ButtonDark, Theme);
+		Widgets.Anchor(button, preset, left, right, top, bottom);
+		AddChild(button);
+		return button;
+	}
+
+	/// <summary>Sets the tutorial behind the "?" button.</summary>
+	public void SetTutorial(IReadOnlyList<TutorialPage> pages)
+	{
+		_tutorial?.QueueFree();
+		_tutorial = new TutorialPanel(Theme, _title, pages);
+		AddChild(_tutorial);
+		_howTo.Visible = pages.Count > 0;
+	}
+
+	/// <summary>Offers the tutorial the first time the game is opened, once.</summary>
+	public void OfferTutorialOnce(GameSettings settings)
+	{
+		if (_tutorial == null || settings.Extra.ContainsKey("tutorial_offered"))
+			return;
+		settings.Extra["tutorial_offered"] = "1";
+		settings.Save();
+		_tutorial.Offer();
+	}
+
+	/// <summary>
+	/// Confirms starting over. Against the computer that's a resignation, a loss, unless the player
+	/// watches an ad: <paramref name="restart"/> is called with true when the loss should count.
+	/// </summary>
+	public void AskRestart(bool vsComputer, Action<bool> restart, Action<Action>? watchAd = null)
+	{
+		if (vsComputer)
+		{
+			Dialog("Start over?",
+				"Against the computer, starting over counts as resigning: a loss. Watch a short ad and it won't count.",
+				("Watch an ad: no loss", true, watchAd == null ? () => restart(false) : () => watchAd(() => restart(false))),
+				("Resign and start over", false, () => restart(true)),
+				("Keep playing", false, null));
+		}
+		else
+		{
+			Dialog("Start over?", "This game will be thrown away and a new one started.",
+				("Start over", true, () => restart(false)),
+				("Keep playing", false, null));
+		}
+	}
+
+	/// <summary>Shows a dialog; the board ignores taps while it's open.</summary>
+	public void Dialog(string title, string message, params (string Text, bool Accent, Action? Pressed)[] buttons)
+	{
+		_dialogs++;
+		var wrapped = Array.ConvertAll(buttons, b => (b.Text, b.Accent, (Action?)(() =>
+		{
+			_dialogs--;
+			b.Pressed?.Invoke();
+		})));
+		ConfirmDialog.Show(this, Theme, title, message, wrapped);
+	}
+
+	// ---------------------------------------------------------------- Updates
 
 	public void SetStatus(string text, Color color)
 	{
@@ -139,6 +228,12 @@ public partial class GameHud : CanvasLayer
 
 	public void SetUndoVisible(bool visible) => _undo.Visible = visible;
 
+	public void SetRestartVisible(bool visible)
+	{
+		if (_restart != null)
+			_restart.Visible = visible;
+	}
+
 	/// <summary>The controls hint fades after the first move; it's only needed once.</summary>
 	public void HideHint()
 	{
@@ -147,6 +242,8 @@ public partial class GameHud : CanvasLayer
 		CreateTween().TweenProperty(_hint, "modulate:a", 0f, 0.6f);
 	}
 
+	// ---------------------------------------------------------------- Modes
+
 	/// <summary>
 	/// Two buttons side by side at the bottom. Choosing "vs Computer" pops up the difficulty choice
 	/// first; the mode only changes once a level is picked, and tapping outside leaves it as it was.
@@ -154,20 +251,20 @@ public partial class GameHud : CanvasLayer
 	private void BuildModeButtons(GameMode mode, Difficulty difficulty, bool levelOnly)
 	{
 		_levelOnly = levelOnly;
-		_pvp = MakeButton("2 Players", 24, _theme.ButtonDark);
-		Anchor(_pvp, Control.LayoutPreset.CenterBottom, left: -330, right: -10, top: -110, bottom: -46);
+		_pvp = Widgets.Button("2 Players", 24, Theme.ButtonDark, Theme);
+		Widgets.Anchor(_pvp, Control.LayoutPreset.CenterBottom, left: -330, right: -10, top: -110, bottom: -46);
 		_pvp.Visible = !levelOnly;
 		AddChild(_pvp);
 
-		_pvc = MakeButton("", 24, _theme.ButtonDark);
+		_pvc = Widgets.Button("", 24, Theme.ButtonDark, Theme);
 		if (levelOnly)
-			Anchor(_pvc, Control.LayoutPreset.CenterBottom, left: -170, right: 170, top: -110, bottom: -46);
+			Widgets.Anchor(_pvc, Control.LayoutPreset.CenterBottom, left: -170, right: 170, top: -110, bottom: -46);
 		else
-			Anchor(_pvc, Control.LayoutPreset.CenterBottom, left: 10, right: 330, top: -110, bottom: -46);
+			Widgets.Anchor(_pvc, Control.LayoutPreset.CenterBottom, left: 10, right: 330, top: -110, bottom: -46);
 		AddChild(_pvc);
 
 		_pvp.Pressed += () => ChooseMode(GameMode.PlayerVsPlayer, difficulty);
-		_pvc.Pressed += () => _difficultyPopup!.Visible = true;
+		_pvc.Pressed += () => Widgets.FadeIn(_difficultyPopup!);
 
 		// Transparent full-screen catcher: a tap anywhere outside the three buttons closes it.
 		var catcher = new Control { MouseFilter = Control.MouseFilterEnum.Stop };
@@ -179,12 +276,8 @@ public partial class GameHud : CanvasLayer
 		};
 		_difficultyPopup = catcher;
 
-		var panel = new PanelContainer();
-		var box = new StyleBoxFlat { BgColor = _theme.Panel, AntiAliasing = true };
-		box.SetCornerRadiusAll(28);
-		box.SetContentMarginAll(14);
-		panel.AddThemeStyleboxOverride("panel", box);
-		Anchor(panel, Control.LayoutPreset.CenterBottom, left: -230, right: 230, top: -200, bottom: -118);
+		var panel = Widgets.Panel(Theme, 14);
+		Widgets.Anchor(panel, Control.LayoutPreset.CenterBottom, left: -230, right: 230, top: -200, bottom: -118);
 		catcher.AddChild(panel);
 
 		var row = new HBoxContainer();
@@ -192,7 +285,7 @@ public partial class GameHud : CanvasLayer
 		panel.AddChild(row);
 		foreach (var level in new[] { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard })
 		{
-			var button = MakeButton(level.ToString(), 26, _theme.Accent);
+			var button = Widgets.Button(level.ToString(), 26, Theme.Accent, Theme);
 			button.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 			button.Pressed += () =>
 			{
@@ -218,38 +311,32 @@ public partial class GameHud : CanvasLayer
 	{
 		bool vsComputer = mode == GameMode.PlayerVsComputer || _levelOnly;
 		_pvc!.Text = _levelOnly ? $"Level: {difficulty}" : vsComputer ? $"vs Computer: {difficulty}" : "vs Computer";
-		Restyle(_pvp!, vsComputer ? _theme.ButtonDark : _theme.Accent);
-		Restyle(_pvc, vsComputer ? _theme.Accent : _theme.ButtonDark);
+		Widgets.Restyle(_pvp!, vsComputer ? Theme.ButtonDark : Theme.Accent, Theme);
+		Widgets.Restyle(_pvc, vsComputer ? Theme.Accent : Theme.ButtonDark, Theme);
 	}
 
-	private void SetMuteText(bool muted) => _mute.Text = muted ? "Sound: Off" : "Sound: On";
+	// ---------------------------------------------------------------- Style menu
 
 	private Control BuildMenu(Style board, Style pieces, string piecesLabel, Func<Style, string> pieceName)
 	{
 		// A light scrim blocks taps on the board while still showing style changes live behind it.
 		var scrim = new ColorRect { Color = new Color(0, 0, 0, 0.25f), MouseFilter = Control.MouseFilterEnum.Stop };
 		scrim.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-
-		var panel = new PanelContainer();
-		var box = new StyleBoxFlat { BgColor = _theme.Panel, AntiAliasing = true };
-		box.SetCornerRadiusAll(28);
-		box.SetContentMarginAll(28);
-		panel.AddThemeStyleboxOverride("panel", box);
-		Anchor(panel, Control.LayoutPreset.BottomWide, left: 24, right: -24, top: -560, bottom: -24);
+		var panel = Widgets.Panel(Theme);
+		Widgets.BottomSheet(panel);
 		scrim.AddChild(panel);
 
 		var column = new VBoxContainer();
 		column.AddThemeConstantOverride("separation", 16);
 		panel.AddChild(column);
-
-		column.AddChild(MakeLabel("Board", 30, _theme.TextMuted));
+		column.AddChild(Widgets.Label("Board", 30, Theme.TextMuted));
 		column.AddChild(MakeChoices(Styles.Choices, board, Styles.BoardName, s => BoardChosen?.Invoke(s)));
-		column.AddChild(MakeLabel(piecesLabel, 30, _theme.TextMuted));
+		column.AddChild(Widgets.Label(piecesLabel, 30, Theme.TextMuted));
 		column.AddChild(MakeChoices(Styles.Choices, pieces, pieceName, s => PiecesChosen?.Invoke(s)));
 
-		var done = MakeButton("Done", 30, _theme.Accent);
+		var done = Widgets.Button("Done", 30, Theme.Accent, Theme);
 		done.CustomMinimumSize = new Vector2(0, 70);
-		done.Pressed += () => scrim.Visible = false;
+		done.Pressed += () => Widgets.FadeOut(scrim);
 		column.AddChild(done);
 		return scrim;
 	}
@@ -262,7 +349,7 @@ public partial class GameHud : CanvasLayer
 		var group = new ButtonGroup();
 		foreach (var choice in choices)
 		{
-			var button = MakeButton(name(choice), 26, _theme.ButtonDark);
+			var button = Widgets.Button(name(choice), 24, Theme.ButtonDark, Theme);
 			button.ToggleMode = true;
 			button.ButtonGroup = group;
 			button.ButtonPressed = choice == selected;
@@ -272,46 +359,5 @@ public partial class GameHud : CanvasLayer
 			grid.AddChild(button);
 		}
 		return grid;
-	}
-
-	private static Label MakeLabel(string text, int fontSize, Color color)
-	{
-		var label = new Label { Text = text, HorizontalAlignment = HorizontalAlignment.Center, MouseFilter = Control.MouseFilterEnum.Ignore };
-		label.AddThemeFontSizeOverride("font_size", fontSize);
-		label.AddThemeColorOverride("font_color", color);
-		// A soft shadow and outline keep text readable over any board or table.
-		label.AddThemeColorOverride("font_shadow_color", new Color(0, 0, 0, 0.5f));
-		label.AddThemeConstantOverride("shadow_offset_y", 3);
-		label.AddThemeColorOverride("font_outline_color", new Color(0, 0, 0, 0.55f));
-		label.AddThemeConstantOverride("outline_size", 8);
-		return label;
-	}
-
-	private Button MakeButton(string text, int fontSize, Color color)
-	{
-		var button = new Button { Text = text, FocusMode = Control.FocusModeEnum.None };
-		button.AddThemeFontSizeOverride("font_size", fontSize);
-		Restyle(button, color);
-		return button;
-	}
-
-	private void Restyle(Button button, Color color)
-	{
-		foreach (var (state, shade) in new[] { ("normal", color), ("hover", color.Lightened(0.12f)), ("pressed", _theme.Accent), ("hover_pressed", _theme.Accent.Lightened(0.12f)) })
-		{
-			var box = new StyleBoxFlat { BgColor = shade, AntiAliasing = true };
-			box.SetCornerRadiusAll(32);
-			box.SetContentMarginAll(12);
-			button.AddThemeStyleboxOverride(state, box);
-		}
-	}
-
-	private static void Anchor(Control control, Control.LayoutPreset preset, float left = 0, float right = 0, float top = 0, float bottom = 0)
-	{
-		control.SetAnchorsPreset(preset);
-		control.OffsetLeft = left;
-		control.OffsetRight = right;
-		control.OffsetTop = top;
-		control.OffsetBottom = bottom;
 	}
 }

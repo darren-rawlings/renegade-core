@@ -69,6 +69,8 @@ public static class Stage
 		foreach (var material in extra)
 			warm.AddChild(new MeshInstance3D { Mesh = sphere, MaterialOverride = material });
 		warm.AddChild(new Sparkle());
+		warm.AddChild(new MeshInstance3D { Mesh = sphere, MaterialOverride = Materials.For(Styles.Pieces(Style.Plastic).One), MaterialOverlay = Flames.Overlay() });
+		warm.AddChild(new Flames());
 		parent.GetTree().CreateTimer(0.4).Timeout += warm.QueueFree;
 	}
 }

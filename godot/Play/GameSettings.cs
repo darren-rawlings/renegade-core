@@ -16,6 +16,9 @@ public sealed class GameSettings
 	private const string Section = "settings";
 
 	public bool Muted { get; set; }
+
+	/// <summary>Stops drag-to-spin, for players who find the board moving when they meant to tap.</summary>
+	public bool FreezeBoard { get; set; }
 	public GameMode Mode { get; set; } = GameMode.PlayerVsComputer;
 	public Difficulty Difficulty { get; set; } = Difficulty.Easy;
 	public Style Board { get; set; } = Style.Wood;
@@ -33,6 +36,7 @@ public sealed class GameSettings
 		if (file.Load(Path) != Error.Ok)
 			return settings;
 		settings.Muted = file.GetValue(Section, "muted", false).AsBool();
+		settings.FreezeBoard = file.GetValue(Section, "freeze_board", false).AsBool();
 		settings.Mode = ReadEnum(file, "mode", settings.Mode);
 		settings.Difficulty = ReadEnum(file, "difficulty", settings.Difficulty);
 		settings.Board = ReadStyle(file, "board", settings.Board);
@@ -50,6 +54,7 @@ public sealed class GameSettings
 	{
 		var file = new ConfigFile();
 		file.SetValue(Section, "muted", Muted);
+		file.SetValue(Section, "freeze_board", FreezeBoard);
 		file.SetValue(Section, "mode", Mode.ToString());
 		file.SetValue(Section, "difficulty", Difficulty.ToString());
 		file.SetValue(Section, "board", Board.ToString());

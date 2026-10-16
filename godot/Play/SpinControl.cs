@@ -34,11 +34,25 @@ public sealed class SpinControl
 	/// <summary>Raised with the screen position of a press that didn't turn into a drag.</summary>
 	public event Action<Vector2>? Tapped;
 
+	/// <summary>
+	/// Lets a game take a press for itself (dragging a piece into place): return true and the
+	/// press goes to <see cref="Dragged"/> and <see cref="Released"/> instead of spinning.
+	/// </summary>
+	public Func<Vector2, bool>? TryGrab { get; set; }
+
+	public event Action<Vector2>? Dragged;
+
+	/// <summary>Raised when a grabbed press ends, with where, and whether it moved (false = it was a tap).</summary>
+	public event Action<Vector2, bool>? Released;
+
+	private bool _grabbed;
+
 	public void HandleInput(InputEvent @event)
 	{
 		switch (@event)
 		{
 			case InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: true } press:
+				_grabbed = TryGrab?.Invoke(press.Position) == true;
 				_pressing = true;
 				_dragging = false;
 				_pressPosition = press.Position;
@@ -46,10 +60,21 @@ public sealed class SpinControl
 				break;
 
 			case InputEventMouseButton { ButtonIndex: MouseButton.Left } release:
+				if (_grabbed)
+				{
+					_grabbed = false;
+					_pressing = false;
+					Released?.Invoke(release.Position, release.Position.DistanceTo(_pressPosition) > DragThreshold);
+					break;
+				}
 				if (_pressing && !_dragging)
 					Tapped?.Invoke(release.Position);
 				_pressing = false;
 				_dragging = false;
+				break;
+
+			case InputEventMouseMotion motion when _grabbed:
+				Dragged?.Invoke(motion.Position);
 				break;
 
 			case InputEventMouseMotion motion:
