@@ -1,0 +1,94 @@
+using System;
+using Godot;
+
+namespace Renegade.Play;
+
+/// <summary>
+/// Turns touches into taps and board spins, as in Counter Fire: a press that moves more than a
+/// few pixels sideways spins <see cref="Target"/> around Y and keeps turning after a flick; a press
+/// that doesn't move is a tap. Feed it input from _UnhandledInput and call <see cref="Process"/>.
+/// </summary>
+public sealed class SpinControl
+{
+	private const float SpinPerPixel = 0.008f;
+	private const float SpinDamping = 1.6f;
+	private const float DragThreshold = 14f;
+
+	private bool _pressing;
+	private bool _dragging;
+	private Vector2 _pressPosition;
+	private float _velocity;
+	private ulong _lastDragUsec;
+
+	public SpinControl(Node3D target, Func<bool> canSpin)
+	{
+		Target = target;
+		CanSpin = canSpin;
+	}
+
+	public Node3D Target { get; }
+
+	/// <summary>Spinning is allowed only while this says so (for example, when no piece is moving).</summary>
+	public Func<bool> CanSpin { get; }
+
+	/// <summary>Raised with the screen position of a press that didn't turn into a drag.</summary>
+	public event Action<Vector2>? Tapped;
+
+	public void HandleInput(InputEvent @event)
+	{
+		switch (@event)
+		{
+			case InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: true } press:
+				_pressing = true;
+				_dragging = false;
+				_pressPosition = press.Position;
+				_velocity = 0f;
+				break;
+
+			case InputEventMouseButton { ButtonIndex: MouseButton.Left } release:
+				if (_pressing && !_dragging)
+					Tapped?.Invoke(release.Position);
+				_pressing = false;
+				_dragging = false;
+				break;
+
+			case InputEventMouseMotion motion:
+				if (_pressing && !_dragging && motion.Position.DistanceTo(_pressPosition) > DragThreshold && CanSpin())
+				{
+					_dragging = true;
+					_lastDragUsec = Time.GetTicksUsec();
+				}
+				if (_dragging)
+					Drag(motion.Relative.X);
+				break;
+		}
+	}
+
+	public void Stop() => _velocity = 0f;
+
+	public void Process(float dt)
+	{
+		if (_dragging || _velocity == 0f)
+			return;
+		if (!CanSpin() || Mathf.Abs(_velocity) < 0.02f)
+		{
+			_velocity = 0f;
+			return;
+		}
+		Target.RotateY(_velocity * dt);
+		_velocity *= Mathf.Exp(-SpinDamping * dt);
+	}
+
+	private void Drag(float pixels)
+	{
+		if (!CanSpin())
+			return;
+		float angle = pixels * SpinPerPixel;
+		Target.RotateY(angle);
+		ulong now = Time.GetTicksUsec();
+		float dt = Mathf.Max((now - _lastDragUsec) / 1_000_000f, 0.001f);
+		_lastDragUsec = now;
+		// Remember how fast the finger was moving, so a flick keeps the board turning.
+		_velocity = Mathf.Lerp(_velocity, angle / dt, 0.5f);
+	}
+}
