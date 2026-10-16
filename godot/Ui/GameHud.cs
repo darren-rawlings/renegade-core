@@ -170,6 +170,8 @@ public partial class GameHud : CanvasLayer
 		var button = Widgets.Button(text, fontSize, accent ? Theme.Accent : Theme.ButtonDark, Theme);
 		Widgets.Anchor(button, preset, left, right, top, bottom);
 		AddChild(button);
+		// Beneath the menus, Settings, the tutorial and dialogs (all added after Undo), never over them.
+		MoveChild(button, _undo.GetIndex() + 1);
 		return button;
 	}
 
