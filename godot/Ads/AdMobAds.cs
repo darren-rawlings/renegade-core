@@ -21,6 +21,11 @@ public sealed class AdMobAds : IAdService
 
 	private InterstitialAd? _interstitial;
 	private RewardedAd? _rewarded;
+	private bool _rewardedLoading;
+	private (Action Rewarded, Action Closed)? _waiting;
+
+	/// <summary>How long a rewarded ad that's still loading is waited for before the reward is just granted.</summary>
+	private const double WaitSeconds = 8;
 	private bool _ready;
 
 	/// <summary>True when the native AdMob plugin is in this build (Android with the plugin enabled).</summary>
@@ -99,6 +104,26 @@ public sealed class AdMobAds : IAdService
 	public void ShowRewarded(Action rewarded, Action closed)
 	{
 		var ad = _rewarded;
+		if (ad == null && _rewardedLoading && _waiting == null)
+		{
+			// One is on its way (straight after another ad, in a series): wait a little for it.
+			BlackBox.Write("ad: rewarded still loading, waiting");
+			var waiting = (rewarded, closed);
+			_waiting = waiting;
+			if (Engine.GetMainLoop() is SceneTree tree)
+			{
+				tree.CreateTimer(WaitSeconds).Timeout += () =>
+				{
+					if (_waiting != waiting)
+						return;
+					_waiting = null;
+					BlackBox.Write("ad: rewarded took too long, granting reward anyway");
+					rewarded();
+					closed();
+				};
+			}
+			return;
+		}
 		if (ad == null)
 		{
 			// No ad to show (offline or none available): don't punish the player, grant the undo.
@@ -151,13 +176,33 @@ public sealed class AdMobAds : IAdService
 
 	private void LoadRewarded()
 	{
-		if (!_ready)
+		if (!_ready || _rewardedLoading)
 			return;
+		_rewardedLoading = true;
 		// New loader each time, as in LoadInterstitial.
 		new RewardedAdLoader().Load(_config.RewardedUnitId, new AdRequest(), new RewardedAdLoadCallback
 		{
-			OnAdLoaded = ad => _rewarded = ad,
-			OnAdFailedToLoad = error => BlackBox.Write($"ad: rewarded failed to load: {error.Message}"),
+			OnAdLoaded = ad =>
+			{
+				_rewarded = ad;
+				_rewardedLoading = false;
+				if (_waiting is { } waiting)
+				{
+					_waiting = null;
+					ShowRewarded(waiting.Rewarded, waiting.Closed);
+				}
+			},
+			OnAdFailedToLoad = error =>
+			{
+				_rewardedLoading = false;
+				BlackBox.Write($"ad: rewarded failed to load: {error.Message}");
+				if (_waiting is { } waiting)
+				{
+					_waiting = null;
+					waiting.Rewarded();
+					waiting.Closed();
+				}
+			},
 		});
 	}
 }

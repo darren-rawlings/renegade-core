@@ -16,4 +16,27 @@ public interface IAdService
 	/// through; <paramref name="closed"/> always runs afterwards.
 	/// </summary>
 	void ShowRewarded(Action rewarded, Action closed);
+
+	/// <summary>
+	/// Several rewarded ads back to back, for a bigger reward. <paramref name="rewarded"/> runs once,
+	/// only if every ad was watched through; skipping one ends the series. <paramref name="closed"/>
+	/// always runs at the end.
+	/// </summary>
+	void ShowRewardedSeries(int count, Action rewarded, Action closed)
+	{
+		if (count <= 0)
+		{
+			rewarded();
+			closed();
+			return;
+		}
+		bool earned = false;
+		ShowRewarded(() => earned = true, () =>
+		{
+			if (earned)
+				ShowRewardedSeries(count - 1, rewarded, closed);
+			else
+				closed();
+		});
+	}
 }
