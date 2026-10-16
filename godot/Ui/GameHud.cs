@@ -237,11 +237,16 @@ public partial class GameHud : CanvasLayer
 	public void Dialog(string title, string message, params (string Text, bool Accent, Action? Pressed)[] buttons)
 	{
 		_dialogs++;
-		var wrapped = Array.ConvertAll(buttons, b => (Text: b.Text, Accent: b.Accent, Pressed: (Action?)(() =>
+		var wrapped = new (string Text, bool Accent, Action? Pressed)[buttons.Length];
+		for (int i = 0; i < buttons.Length; i++)
 		{
-			_dialogs--;
-			b.Pressed?.Invoke();
-		})));
+			var button = buttons[i];
+			wrapped[i] = (button.Text, button.Accent, () =>
+			{
+				_dialogs--;
+				button.Pressed?.Invoke();
+			});
+		}
 		ConfirmDialog.Show(this, Theme, title, message, wrapped);
 	}
 
