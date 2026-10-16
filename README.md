@@ -5,10 +5,13 @@ in as a git submodule at `addons/renegade_core`, so a fix made here reaches ever
 
 | Folder | What's in it | Needs Godot? |
 |---|---|---|
-| `pure/` | `AdSchedule` (every-Nth-game ads), `Synth/ImpactSynth` (synthesised impact sounds) | No: unit tested |
+| `pure/` | `AdSchedule` (every-Nth-game ads), `Scoreboard`, `GameMode`/`Difficulty`, `Synth/ImpactSynth` (synthesised impact sounds) | No: unit tested |
+| `godot/Looks` | `Styles` (the five materials: looks, piece sets, sounds tuned for phone speakers) and `Materials` (shader cache), over `shaders/` | Yes |
+| `godot/Play` | `Stage` (lights, reflection sky, table, shader warm-up), `SpinControl` (tap vs drag-to-spin), `GameSettings`, `ComputerTurn` (background search), `Sparkle` effects | Yes |
+| `godot/Ui` | `GameHud`: title, score, status, hint, New Game, Undo (ad) or a custom ad button, Sound, mode buttons or a Level button, Style menu | Yes |
 | `godot/Ads` | `IAdService`, `AdMobAds` (real ads, consent, child-directed), `PlaceholderAds` (desktop stand-in), `AdServices.Create` | Yes |
 | `godot/Audio` | `SoundPool` (round-robin positional players), `ImpactBank<T>` (cached synthesised variations) | Yes |
-| `godot/Dev` | `DevLog` (`--log`, readable in `adb logcat`), `DevArgs` (flags from the command line or `user://dev_args.txt`) | Yes |
+| `godot/Dev` | `DevLog` (`--log`), `DevArgs` (flags from the command line or `user://dev_args.txt`), `BlackBox` + `AudioWatch` (an always-on flight recorder in `user://blackbox.log`) | Yes |
 | `docs/` | [Release playbook](docs/RELEASE_PLAYBOOK.md), [starting a new game](docs/NEW_GAME.md), [website](docs/WEBSITE.md) | |
 
 `AdMobAds` uses the [Poing Studios AdMob plugin](https://github.com/poingstudios/godot-admob-plugin),
