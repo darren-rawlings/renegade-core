@@ -143,6 +143,17 @@ public partial class TutorialPanel : Control
 		column.AddChild(buttons);
 	}
 
+	/// <summary>Opens the tour straight at a step (for checking the pages).</summary>
+	public void OpenAt(int page)
+	{
+		_offer.Visible = false;
+		Visible = true;
+		Modulate = Colors.White;
+		_page = Mathf.Clamp(page, 0, _pages.Count - 1);
+		ShowPage();
+		_tour.Visible = true;
+	}
+
 	private void StartTour()
 	{
 		_page = 0;

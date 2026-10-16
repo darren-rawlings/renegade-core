@@ -182,6 +182,25 @@ public partial class GameHud : CanvasLayer
 		_howTo.Visible = pages.Count > 0;
 	}
 
+	/// <summary>Developer checks: `--tutorial=N` opens the tour at step N (0 = the invitation), `--settings` opens Settings.</summary>
+	public void ApplyDevFlags()
+	{
+		foreach (string arg in OS.GetCmdlineUserArgs())
+		{
+			if (arg.StartsWith("--tutorial=") && int.TryParse(arg[11..], out int page))
+			{
+				if (page == 0)
+					_tutorial?.Offer();
+				else
+					_tutorial?.OpenAt(page - 1);
+			}
+			else if (arg == "--settings")
+			{
+				_settings.Open();
+			}
+		}
+	}
+
 	/// <summary>Offers the tutorial the first time the game is opened, once.</summary>
 	public void OfferTutorialOnce(GameSettings settings)
 	{
