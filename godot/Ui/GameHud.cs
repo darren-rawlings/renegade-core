@@ -136,8 +136,20 @@ public partial class GameHud : CanvasLayer
 		}
 
 		_settings = new SettingsPanel(Theme);
-		_settings.AddToggle("Sound", !settings.Muted, on => MuteToggled?.Invoke(!on));
-		_settings.AddToggle("Freeze the board (no spinning)", settings.FreezeBoard, on => FreezeToggled?.Invoke(on));
+		// The HUD keeps these two itself: games only read settings.Muted and settings.FreezeBoard.
+		_settings.AddToggle("Sound", !settings.Muted, on =>
+		{
+			settings.Muted = !on;
+			AudioServer.SetBusMute(0, !on);
+			settings.Save();
+			MuteToggled?.Invoke(!on);
+		});
+		_settings.AddToggle("Freeze the board (no spinning)", settings.FreezeBoard, on =>
+		{
+			settings.FreezeBoard = on;
+			settings.Save();
+			FreezeToggled?.Invoke(on);
+		});
 		AddChild(_settings);
 	}
 
