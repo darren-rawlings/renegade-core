@@ -218,7 +218,7 @@ public partial class GameHud : CanvasLayer
 	public void Dialog(string title, string message, params (string Text, bool Accent, Action? Pressed)[] buttons)
 	{
 		_dialogs++;
-		var wrapped = Array.ConvertAll(buttons, b => (b.Text, b.Accent, (Action?)(() =>
+		var wrapped = Array.ConvertAll(buttons, b => (Text: b.Text, Accent: b.Accent, Pressed: (Action?)(() =>
 		{
 			_dialogs--;
 			b.Pressed?.Invoke();
