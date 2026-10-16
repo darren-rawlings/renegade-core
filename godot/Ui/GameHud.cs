@@ -12,7 +12,10 @@ public sealed record HudTheme(Color Text, Color TextMuted, Color Accent, Color B
 	public static HudTheme Warm { get; } = new(new("fff3e0"), new("d9b99b"), new("e0782a"), new("4a2c1a"), new Color("2a180e") with { A = 0.94f });
 }
 
-/// <summary>What a game's HUD offers.</summary>
+/// <summary>
+/// What a game's HUD offers. <see cref="LevelOnly"/> replaces the two mode buttons with a single
+/// "Level" button, for solo games; <see cref="UndoText"/> renames the rewarded-ad button (a hint, say).
+/// </summary>
 public sealed record HudOptions(
 	string Title,
 	string Hint,
@@ -21,7 +24,9 @@ public sealed record HudOptions(
 	bool StyleMenu = true,
 	string PiecesLabel = "Pieces",
 	Func<Style, string>? PieceName = null,
-	string NewGameText = "New Game");
+	string NewGameText = "New Game",
+	string UndoText = "Undo (ad)",
+	bool LevelOnly = false);
 
 /// <summary>
 /// The studio's game HUD, laid out for a 720×1280 portrait phone: title and score at the top, a
@@ -49,6 +54,7 @@ public partial class GameHud : CanvasLayer
 	private Button? _pvc;
 	private Control? _difficultyPopup;
 	private Control? _menu;
+	private bool _levelOnly;
 
 	public GameHud() : this(HudTheme.Warm) { }
 
@@ -82,7 +88,7 @@ public partial class GameHud : CanvasLayer
 		AddChild(_newGame);
 
 		// Undo plays a rewarded ad, so the label says so.
-		_undo = MakeButton("Undo (ad)", 22, _theme.ButtonDark);
+		_undo = MakeButton(options.UndoText, 22, _theme.ButtonDark);
 		Anchor(_undo, Control.LayoutPreset.BottomLeft, left: 20, right: 168, top: -186, bottom: -130);
 		_undo.Pressed += () => UndoPressed?.Invoke();
 		_undo.Visible = false;
@@ -107,8 +113,8 @@ public partial class GameHud : CanvasLayer
 			AddChild(style);
 		}
 
-		if (options.Modes)
-			BuildModeButtons(mode, difficulty);
+		if (options.Modes || options.LevelOnly)
+			BuildModeButtons(mode, difficulty, options.LevelOnly);
 
 		if (options.StyleMenu)
 		{
@@ -145,14 +151,19 @@ public partial class GameHud : CanvasLayer
 	/// Two buttons side by side at the bottom. Choosing "vs Computer" pops up the difficulty choice
 	/// first; the mode only changes once a level is picked, and tapping outside leaves it as it was.
 	/// </summary>
-	private void BuildModeButtons(GameMode mode, Difficulty difficulty)
+	private void BuildModeButtons(GameMode mode, Difficulty difficulty, bool levelOnly)
 	{
+		_levelOnly = levelOnly;
 		_pvp = MakeButton("2 Players", 24, _theme.ButtonDark);
 		Anchor(_pvp, Control.LayoutPreset.CenterBottom, left: -330, right: -10, top: -110, bottom: -46);
+		_pvp.Visible = !levelOnly;
 		AddChild(_pvp);
 
 		_pvc = MakeButton("", 24, _theme.ButtonDark);
-		Anchor(_pvc, Control.LayoutPreset.CenterBottom, left: 10, right: 330, top: -110, bottom: -46);
+		if (levelOnly)
+			Anchor(_pvc, Control.LayoutPreset.CenterBottom, left: -170, right: 170, top: -110, bottom: -46);
+		else
+			Anchor(_pvc, Control.LayoutPreset.CenterBottom, left: 10, right: 330, top: -110, bottom: -46);
 		AddChild(_pvc);
 
 		_pvp.Pressed += () => ChooseMode(GameMode.PlayerVsPlayer, difficulty);
@@ -205,8 +216,8 @@ public partial class GameHud : CanvasLayer
 
 	private void ShowMode(GameMode mode, Difficulty difficulty)
 	{
-		bool vsComputer = mode == GameMode.PlayerVsComputer;
-		_pvc!.Text = vsComputer ? $"vs Computer: {difficulty}" : "vs Computer";
+		bool vsComputer = mode == GameMode.PlayerVsComputer || _levelOnly;
+		_pvc!.Text = _levelOnly ? $"Level: {difficulty}" : vsComputer ? $"vs Computer: {difficulty}" : "vs Computer";
 		Restyle(_pvp!, vsComputer ? _theme.ButtonDark : _theme.Accent);
 		Restyle(_pvc, vsComputer ? _theme.Accent : _theme.ButtonDark);
 	}
