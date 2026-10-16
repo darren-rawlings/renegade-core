@@ -26,7 +26,8 @@ window/size/viewport_height=720
 try {
 	foreach ($clip in $Clips) {
 		$out = Join-Path $project "tutorial\$clip.ogv"
-		& $godot --path $project --write-movie $out --fixed-fps 30 -- "--clip=$clip" 2>&1 | Out-Null
+		$run = Start-Process -FilePath $godot -ArgumentList @("--path", "`"$project`"", "--write-movie", "`"$out`"", "--fixed-fps", "30", "--", "--clip=$clip") -NoNewWindow -PassThru
+		if (-not $run.WaitForExit(120000)) { $run.Kill(); Write-Warning "$clip took over 2 minutes and was stopped" }
 		Write-Host "Recorded $out ($([math]::Round((Get-Item $out).Length / 1KB)) KB)"
 	}
 } finally {
