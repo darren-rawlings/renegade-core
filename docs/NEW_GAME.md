@@ -22,7 +22,7 @@ git add -A && git commit -m "Name the game" && git push
 
 1. Write `docs/DESIGN.md`: rules, the feel, the one signature effect, modes, ads, v1 scope.
 2. Rules in `src/Core` (plain C#, unit tested), the 3D game in `src/Game`.
-   Every game has, from the template: the top row (Style, ?, Start over, Settings), Settings
+   Every game has, from the template: the top row (Style, Demo, Start over, Settings), Settings
    with Sound and Freeze the board (add the game's own rows with `AddToggle`/`AddChoice`, kept
    in `GameSettings.Extra`), Start over (against the computer: a resignation unless an ad is
    watched, `AskRestart`), the winner's fire (`Flames.SetAlight`), and titles in normal case.

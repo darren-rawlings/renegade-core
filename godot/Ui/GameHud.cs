@@ -189,7 +189,7 @@ public partial class GameHud : CanvasLayer
 		return button;
 	}
 
-	/// <summary>Sets the tutorial behind the "?" button.</summary>
+	/// <summary>Sets the tutorial behind the Demo button.</summary>
 	public void SetTutorial(IReadOnlyList<TutorialPage> pages)
 	{
 		_tutorial?.QueueFree();
