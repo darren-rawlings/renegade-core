@@ -6,12 +6,17 @@ namespace Renegade.Ui;
 /// <summary>
 /// The Settings sheet: a panel that slides up from the bottom with one row per setting. Sound and
 /// Freeze board come built in; each game adds its own rows with <see cref="AddToggle"/> and
-/// <see cref="AddChoice"/>.
+/// <see cref="AddChoice"/>, and the HUD adds the shop with <see cref="AddActions"/>. A long list
+/// scrolls.
 /// </summary>
 public partial class SettingsPanel : Control
 {
 	private readonly HudTheme _theme;
-	private readonly VBoxContainer _rows = new();
+	private readonly VBoxContainer _rows = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+	private readonly ScrollContainer _scroll = new() { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
+
+	/// <summary>Rows that always come last, after every game's own (the shop).</summary>
+	private readonly VBoxContainer _footer = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 
 	public SettingsPanel(HudTheme theme)
 	{
@@ -34,7 +39,13 @@ public partial class SettingsPanel : Control
 		panel.AddChild(column);
 		column.AddChild(Widgets.Label("Settings", 34, theme.Text));
 		_rows.AddThemeConstantOverride("separation", 14);
-		column.AddChild(_rows);
+		_footer.AddThemeConstantOverride("separation", 14);
+		var content = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		content.AddThemeConstantOverride("separation", 14);
+		content.AddChild(_rows);
+		content.AddChild(_footer);
+		_scroll.AddChild(content);
+		column.AddChild(_scroll);
 		var done = Widgets.Button("Done", 30, theme.Accent, theme);
 		done.CustomMinimumSize = new Vector2(0, 70);
 		done.Pressed += Close;
@@ -42,7 +53,14 @@ public partial class SettingsPanel : Control
 		Visible = false;
 	}
 
-	public void Open() => Widgets.FadeIn(this);
+	public void Open()
+	{
+		// As tall as the rows, up to about two thirds of the screen; beyond that the rows scroll.
+		float wanted = _rows.GetCombinedMinimumSize().Y + 14 + _footer.GetCombinedMinimumSize().Y;
+		_scroll.CustomMinimumSize = new Vector2(0, Mathf.Min(wanted, GetViewportRect().Size.Y * 0.62f));
+		_scroll.ScrollVertical = 0;
+		Widgets.FadeIn(this);
+	}
 
 	public void Close() => Widgets.FadeOut(this);
 
@@ -72,6 +90,47 @@ public partial class SettingsPanel : Control
 		Show();
 		row.AddChild(toggle);
 		_rows.AddChild(row);
+	}
+
+	/// <summary>A small heading between groups of rows. Returned so it can be hidden.</summary>
+	public Label AddHeading(string text, bool footer = false)
+	{
+		var label = Widgets.Body(text, 24, _theme.TextMuted);
+		label.HorizontalAlignment = HorizontalAlignment.Left;
+		(footer ? _footer : _rows).AddChild(label);
+		return label;
+	}
+
+	/// <summary>
+	/// A row of buttons that do something (buy, support) rather than change a setting. The buttons
+	/// are returned so their text, colour or visibility can change later.
+	/// </summary>
+	public Button[] AddActions(bool footer, params (string Text, bool Accent, Action Pressed)[] actions)
+	{
+		var row = new HBoxContainer();
+		row.AddThemeConstantOverride("separation", 10);
+		var buttons = new Button[actions.Length];
+		for (int i = 0; i < actions.Length; i++)
+		{
+			var (text, accent, pressed) = actions[i];
+			var button = Widgets.Button(text, 22, accent ? _theme.Accent : _theme.ButtonDark, _theme);
+			button.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			button.CustomMinimumSize = new Vector2(0, 58);
+			button.Pressed += pressed;
+			buttons[i] = button;
+			row.AddChild(button);
+		}
+		(footer ? _footer : _rows).AddChild(row);
+		return buttons;
+	}
+
+	/// <summary>A line of plain text (a note under a group of rows). Returned so it can change.</summary>
+	public Label AddNote(string text, bool footer = false)
+	{
+		var label = Widgets.Body(text, 20, _theme.TextMuted);
+		label.HorizontalAlignment = HorizontalAlignment.Left;
+		(footer ? _footer : _rows).AddChild(label);
+		return label;
 	}
 
 	/// <summary>A labelled row of options, one chosen at a time (board sizes, marble shapes...).</summary>

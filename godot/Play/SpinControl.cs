@@ -24,12 +24,22 @@ public sealed class SpinControl
 	{
 		Target = target;
 		CanSpin = canSpin;
+		Home = target.Rotation.Y;
 	}
 
 	public Node3D Target { get; }
 
 	/// <summary>Spinning is allowed only while this says so (for example, when no piece is moving).</summary>
 	public Func<bool> CanSpin { get; }
+
+	/// <summary>The board's starting angle, where Freeze the board puts it back.</summary>
+	public float Home { get; set; }
+
+	/// <summary>
+	/// While this says so (Freeze the board is on, and nothing is moving), the board eases back to
+	/// <see cref="Home"/> and stays there.
+	/// </summary>
+	public Func<bool>? Frozen { get; set; }
 
 	/// <summary>Raised with the screen position of a press that didn't turn into a drag.</summary>
 	public event Action<Vector2>? Tapped;
@@ -93,6 +103,14 @@ public sealed class SpinControl
 
 	public void Process(float dt)
 	{
+		if (Frozen?.Invoke() == true)
+		{
+			_velocity = 0f;
+			float off = Mathf.AngleDifference(Target.Rotation.Y, Home);
+			if (Mathf.Abs(off) > 0.0005f)
+				Target.RotateY(Mathf.Abs(off) < 0.002f ? off : off * (1f - Mathf.Exp(-9f * dt)));
+			return;
+		}
 		if (_dragging || _velocity == 0f)
 			return;
 		if (!CanSpin() || Mathf.Abs(_velocity) < 0.02f)

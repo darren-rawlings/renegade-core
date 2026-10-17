@@ -4,6 +4,7 @@ using Godot;
 using Renegade.Core;
 using Renegade.Looks;
 using Renegade.Play;
+using Renegade.Store;
 
 namespace Renegade.Ui;
 
@@ -46,6 +47,7 @@ public partial class GameHud : CanvasLayer
 	private Label _hint = null!;
 	private Button _newGame = null!;
 	private Button _undo = null!;
+	private string _undoText = "";
 	private Button? _restart;
 	private Button? _pvp;
 	private Button? _pvc;
@@ -107,8 +109,9 @@ public partial class GameHud : CanvasLayer
 			style.Pressed += () => Widgets.FadeIn(_menu!);
 			AddChild(style);
 		}
-		_howTo = Widgets.Button("?", 26, Theme.ButtonDark, Theme);
-		Widgets.Anchor(_howTo, Control.LayoutPreset.TopLeft, left: options.StyleMenu ? 134 : 20, right: options.StyleMenu ? 182 : 68, top: 148, bottom: 196);
+		// "Demo": the guided tour with video clips of the game.
+		_howTo = Widgets.Button("Demo", 22, Theme.ButtonDark, Theme);
+		Widgets.Anchor(_howTo, Control.LayoutPreset.TopLeft, left: options.StyleMenu ? 134 : 20, right: options.StyleMenu ? 234 : 120, top: 148, bottom: 196);
 		_howTo.Pressed += () => _tutorial?.Offer();
 		_howTo.Visible = false;
 		AddChild(_howTo);
@@ -151,6 +154,17 @@ public partial class GameHud : CanvasLayer
 			FreezeToggled?.Invoke(on);
 		});
 		AddChild(_settings);
+
+		// The shop at the foot of Settings; once ads are removed, "(ad)" leaves the labels.
+		_undoText = options.UndoText;
+		ShopRows.Add(_settings, this, message => Dialog("", message, ("OK", true, null)));
+		if (Shop.Current is { } shop)
+		{
+			void Relabel() => _undo.Text = ShopRows.AdText(_undoText);
+			shop.Changed += Relabel;
+			TreeExiting += () => shop.Changed -= Relabel;
+			Relabel();
+		}
 	}
 
 	/// <summary>True while a menu, pop-up or dialog is open; the board ignores taps meanwhile.</summary>
@@ -219,6 +233,14 @@ public partial class GameHud : CanvasLayer
 	/// </summary>
 	public void AskRestart(bool vsComputer, Action<bool> restart, Action<Action>? watchAd = null)
 	{
+		if (vsComputer && Shop.Current?.AdsRemoved == true)
+		{
+			// No ads to watch: starting over is simply free.
+			Dialog("Start over?", "This game will be cleared away and a new one started. It won't count as a loss.",
+				("Start over", true, () => restart(false)),
+				("Keep playing", false, null));
+			return;
+		}
 		if (vsComputer)
 		{
 			Dialog("Start over?",
