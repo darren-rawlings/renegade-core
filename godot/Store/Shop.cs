@@ -17,7 +17,7 @@ namespace Renegade.Store;
 ///   prices), consumed at once so they can be given again.
 /// Nothing shows until Google Play has answered with the products and their local prices, so the
 /// buttons stay hidden on desktop, offline, and until the products exist in the Play Console.
-/// For desktop testing, `--shop` fakes the store.
+/// For desktop testing, `--shop` fakes the store (`--shop=bought`: as if Remove ads were bought).
 /// </summary>
 public partial class Shop : Node
 {
@@ -69,9 +69,12 @@ public partial class Shop : Node
 		if (cache.Load(CachePath) == Error.Ok)
 			AdsRemoved = cache.GetValue("purchases", RemoveAds, false).AsBool();
 
-		if (OS.GetCmdlineUserArgs().Contains("--shop"))
+		var args = OS.GetCmdlineUserArgs();
+		if (args.Contains("--shop") || args.Contains("--shop=bought"))
 		{
+			// A pretend store for desktop checks; it never touches the real purchase record.
 			_fake = true;
+			AdsRemoved = args.Contains("--shop=bought");
 			_prices[RemoveAds] = "$0.99";
 			_prices[Tips[0]] = "$0.99";
 			_prices[Tips[1]] = "$2.99";
@@ -184,10 +187,13 @@ public partial class Shop : Node
 			if (!AdsRemoved)
 				Message?.Invoke("Thank you! The ads are gone for good.");
 			AdsRemoved = true;
-			var cache = new ConfigFile();
-			cache.Load(CachePath);
-			cache.SetValue("purchases", RemoveAds, true);
-			cache.Save(CachePath);
+			if (!_fake)
+			{
+				var cache = new ConfigFile();
+				cache.Load(CachePath);
+				cache.SetValue("purchases", RemoveAds, true);
+				cache.Save(CachePath);
+			}
 			BlackBox.Write("shop: ads removed");
 		}
 		else

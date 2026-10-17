@@ -17,6 +17,8 @@ public partial class SettingsPanel : Control
 
 	/// <summary>Rows that always come last, after every game's own (the shop).</summary>
 	private readonly VBoxContainer _footer = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+	private readonly VBoxContainer _content = new() { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+	private readonly PanelContainer _panel;
 
 	public SettingsPanel(HudTheme theme)
 	{
@@ -31,20 +33,19 @@ public partial class SettingsPanel : Control
 		};
 		AddChild(scrim);
 
-		var panel = Widgets.Panel(theme);
-		Widgets.BottomSheet(panel);
-		AddChild(panel);
+		_panel = Widgets.Panel(theme);
+		Widgets.BottomSheet(_panel);
+		AddChild(_panel);
 		var column = new VBoxContainer();
 		column.AddThemeConstantOverride("separation", 18);
-		panel.AddChild(column);
+		_panel.AddChild(column);
 		column.AddChild(Widgets.Label("Settings", 34, theme.Text));
 		_rows.AddThemeConstantOverride("separation", 14);
 		_footer.AddThemeConstantOverride("separation", 14);
-		var content = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		content.AddThemeConstantOverride("separation", 14);
-		content.AddChild(_rows);
-		content.AddChild(_footer);
-		_scroll.AddChild(content);
+		_content.AddThemeConstantOverride("separation", 14);
+		_content.AddChild(_rows);
+		_content.AddChild(_footer);
+		_scroll.AddChild(_content);
 		column.AddChild(_scroll);
 		var done = Widgets.Button("Done", 30, theme.Accent, theme);
 		done.CustomMinimumSize = new Vector2(0, 70);
@@ -53,13 +54,24 @@ public partial class SettingsPanel : Control
 		Visible = false;
 	}
 
-	public void Open()
+	public async void Open()
 	{
-		// As tall as the rows, up to about two thirds of the screen; beyond that the rows scroll.
-		float wanted = _rows.GetCombinedMinimumSize().Y + 14 + _footer.GetCombinedMinimumSize().Y;
-		_scroll.CustomMinimumSize = new Vector2(0, Mathf.Min(wanted, GetViewportRect().Size.Y * 0.62f));
 		_scroll.ScrollVertical = 0;
+		FitHeight();
 		Widgets.FadeIn(this);
+		// Wrapped text only knows how tall it is once it has a width: fit again after the layout.
+		for (int frame = 0; frame < 2; frame++)
+			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+		FitHeight();
+	}
+
+	/// <summary>As tall as the rows, up to about two thirds of the screen; beyond that they scroll.</summary>
+	private void FitHeight()
+	{
+		float wanted = _content.GetCombinedMinimumSize().Y;
+		_scroll.CustomMinimumSize = new Vector2(0, Mathf.Min(wanted, GetViewportRect().Size.Y * 0.62f));
+		// Let the sheet shrink to fit as well as grow (it grows upward from the bottom edge).
+		Widgets.BottomSheet(_panel);
 	}
 
 	public void Close() => Widgets.FadeOut(this);
