@@ -24,7 +24,7 @@ public sealed class SpinControl
 	{
 		Target = target;
 		CanSpin = canSpin;
-		Home = target.Rotation.Y;
+
 	}
 
 	public Node3D Target { get; }
@@ -32,7 +32,7 @@ public sealed class SpinControl
 	/// <summary>Spinning is allowed only while this says so (for example, when no piece is moving).</summary>
 	public Func<bool> CanSpin { get; }
 
-	/// <summary>The board's starting angle, where Freeze the board puts it back.</summary>
+	/// <summary>The board's square-on angle, where Freeze the board puts it back.</summary>
 	public float Home { get; set; }
 
 	/// <summary>
