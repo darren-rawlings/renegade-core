@@ -66,6 +66,28 @@ Per game:
       before production access. Start this early.
 - [ ] **Production**: upload the .aab, roll out.
 
+### In-app products (Remove ads, tips)
+
+The games already contain the shop (renegade-core `Store/Shop.cs`, with the
+GodotGooglePlayBilling plugin in each game's `addons`). Its buttons stay hidden until Google Play
+answers with these products, so nothing shows until they exist. Per game:
+- [ ] **Payments profile** (once, for the account): Play Console > Settings > Payments profile.
+      Needed before any product can be priced; it's where Google pays you.
+- [ ] Upload a build that includes the billing plugin to a testing track first; Play only lets
+      you create products for an app that has one.
+- [ ] **Monetize > Products > In-app products**, create (IDs must match exactly):
+      - `remove_ads`: "Remove all ads", one-time, **$0.99** (Play suggests local prices).
+      - `tip_small` ($0.99), `tip_medium` ($2.99), `tip_large` ($4.99): "Tip", one-time;
+        the game consumes them so they can be given again. Play has no "any amount": it only
+        sells fixed prices, so a few tip sizes stand in for a free choice.
+- [ ] Set each product **Active**.
+- [ ] **License testing** (Settings > License testing): add your Google account, so test
+      purchases are free and can be refunded.
+- [ ] Declare in-app purchases in the store listing ("Contains ads · In-app purchases").
+- Families policy: the shop is in Settings only, with real prices, no pressure, and "Ask a
+  grown-up first"; Google Play's own purchase screen asks for the account password / Family Link
+  approval.
+
 ## 6. After launch
 
 - [ ] Website: change the game's button from "coming soon" to the Play Store link
