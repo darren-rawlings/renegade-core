@@ -46,7 +46,9 @@ C:\GameDev\Android\jdk-17\bin\keytool.exe -genkeypair -v -keystore C:\GameDev\An
       `<uses-permission android:name="com.google.android.gms.permission.AD_ID" tools:node="remove"/>`
       (and `xmlns:tools="http://schemas.android.com/tools"` on `<manifest>`).
 - [ ] Bump `version/code` (+1 every upload) and `version/name`.
-- [ ] `Godot.exe --headless --path . --export-release "Android" build/android/<Game>.aab`
+- [ ] `powershell -File C:GameDevenegade-core	oolsBuild-Release.ps1 -Project <game folder>` builds the
+      signed .aab: it installs the build template, removes the advertising ID permissions and signs
+      with the key from `C:GameDevAndroidkeystores` (the password never goes in a project file).
 - [ ] Install a release APK on the phone and play a full session once more.
 
 ## 5. Play Console
@@ -61,7 +63,8 @@ Per game:
       (children included → Families policy); Data safety (no data collected by us; AdMob's
       collection declared per Google's AdMob data disclosure); Advertising ID: matches step 4.
 - [ ] **Store listing**: short description (80 chars), full description, 512×512 icon,
-      1024×500 feature graphic, at least 2 phone screenshots.
+      1024×500 feature graphic, at least 2 phone screenshots. `tools/Take-Screenshots.ps1` records them
+      from the demo (1080 × 1920, no alpha) and `tools/New-FeatureGraphic.ps1` makes the graphic.
 - [ ] **Closed testing**: personal accounts need **12 testers opted in for 14 days in a row**
       before production access. Start this early.
 - [ ] **Production**: upload the .aab, roll out.
