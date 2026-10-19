@@ -40,15 +40,14 @@ C:\GameDev\Android\jdk-17\bin\keytool.exe -genkeypair -v -keystore C:\GameDev\An
 
 ## 4. Release build (.aab)
 
-- [ ] `use_gradle_build` and **Export Format: AAB** in the Android preset.
-- [ ] Children included? Remove the advertising ID permission the ads SDK adds:
-      in `android/build/AndroidManifest.xml` add
-      `<uses-permission android:name="com.google.android.gms.permission.AD_ID" tools:node="remove"/>`
-      (and `xmlns:tools="http://schemas.android.com/tools"` on `<manifest>`).
+- [ ] `use_gradle_build` in the Android preset (the build script switches the export to AAB).
 - [ ] Bump `version/code` (+1 every upload) and `version/name`.
-- [ ] `powershell -File C:GameDevenegade-core	oolsBuild-Release.ps1 -Project <game folder>` builds the
-      signed .aab: it installs the build template, removes the advertising ID permissions and signs
-      with the key from `C:GameDevAndroidkeystores` (the password never goes in a project file).
+- [ ] `powershell -File C:\GameDev\renegade-core\tools\Build-Release.ps1 -Project <game folder>` builds
+      `build\android\<Name>.aab`. It installs the build template if needed, removes the advertising
+      ID permissions the ads SDK adds (children's games must not send it; the template is
+      regenerated, so it does this on every build) and signs with the key from
+      `C:\GameDev\Android\keystores`, passing the password in environment variables so it never
+      lands in a project file.
 - [ ] Install a release APK on the phone and play a full session once more.
 
 ## 5. Play Console
