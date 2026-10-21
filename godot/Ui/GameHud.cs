@@ -22,7 +22,11 @@ public sealed record HudOptions(
 	string NewGameText = "New Game",
 	string UndoText = "Undo (ad)",
 	bool LevelOnly = false,
-	bool Restart = true);
+	bool Restart = true,
+	// Games with nothing to spin (card games) leave "Freeze the board" out of Settings.
+	bool FreezeSetting = true,
+	// A game's own Style menu (card backs and fronts, say) in place of the board and pieces one.
+	Action? CustomStyle = null);
 
 /// <summary>
 /// The studio's game HUD, laid out for a 720×1280 portrait phone. Top: the title and score, with a
@@ -106,7 +110,13 @@ public partial class GameHud : CanvasLayer
 		{
 			var style = Widgets.Button("Style", 22, Theme.ButtonDark, Theme);
 			Widgets.Anchor(style, Control.LayoutPreset.TopLeft, left: 20, right: 124, top: 148, bottom: 196);
-			style.Pressed += () => Widgets.FadeIn(_menu!);
+			style.Pressed += () =>
+			{
+				if (options.CustomStyle != null)
+					options.CustomStyle();
+				else
+					Widgets.FadeIn(_menu!);
+			};
 			AddChild(style);
 		}
 		// "Demo": the guided tour with video clips of the game.
@@ -131,7 +141,7 @@ public partial class GameHud : CanvasLayer
 		if (options.Modes || options.LevelOnly)
 			BuildModeButtons(settings.Mode, settings.Difficulty, options.LevelOnly);
 
-		if (options.StyleMenu)
+		if (options.StyleMenu && options.CustomStyle == null)
 		{
 			_menu = BuildMenu(settings.Board, settings.Pieces, options.PiecesLabel, options.PieceName ?? (s => Styles.Pieces(s).Name));
 			_menu.Visible = false;
@@ -147,12 +157,15 @@ public partial class GameHud : CanvasLayer
 			settings.Save();
 			MuteToggled?.Invoke(!on);
 		});
-		_settings.AddToggle("Freeze the board (no spinning)", settings.FreezeBoard, on =>
+		if (options.FreezeSetting)
 		{
-			settings.FreezeBoard = on;
-			settings.Save();
-			FreezeToggled?.Invoke(on);
-		});
+			_settings.AddToggle("Freeze the board (no spinning)", settings.FreezeBoard, on =>
+			{
+				settings.FreezeBoard = on;
+				settings.Save();
+				FreezeToggled?.Invoke(on);
+			});
+		}
 		AddChild(_settings);
 
 		// The shop at the foot of Settings; once ads are removed, "(ad)" leaves the labels.
