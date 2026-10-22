@@ -32,6 +32,7 @@ public partial class TutorialPanel : Control
 	private int _page;
 
 	public event Action? Closed;
+	public event Action? Opened;
 
 	public TutorialPanel(HudTheme theme, string game, IReadOnlyList<TutorialPage> pages)
 	{
@@ -52,6 +53,7 @@ public partial class TutorialPanel : Control
 		_tour.Visible = false;
 		_offer.Visible = true;
 		Widgets.FadeIn(this);
+		Opened?.Invoke();
 	}
 
 	private void BuildOffer()

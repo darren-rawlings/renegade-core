@@ -39,6 +39,12 @@ public partial class GameHud : CanvasLayer
 {
 	public event Action? NewGamePressed;
 	public event Action? UndoPressed;
+
+	/// <summary>The tutorial (Demo) opened or closed: a game can hold play while it's up.</summary>
+	public event Action? TutorialOpened;
+	public event Action? TutorialClosed;
+
+	public bool TutorialOpen => _tutorial?.Visible == true;
 	public event Action? RestartPressed;
 	public event Action<bool>? MuteToggled;
 	public event Action<bool>? FreezeToggled;
@@ -208,6 +214,8 @@ public partial class GameHud : CanvasLayer
 	{
 		_tutorial?.QueueFree();
 		_tutorial = new TutorialPanel(Theme, _title, pages);
+		_tutorial.Opened += () => TutorialOpened?.Invoke();
+		_tutorial.Closed += () => TutorialClosed?.Invoke();
 		AddChild(_tutorial);
 		_howTo.Visible = pages.Count > 0;
 	}
