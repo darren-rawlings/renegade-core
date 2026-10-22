@@ -62,6 +62,7 @@ public partial class GameHud : CanvasLayer
 	private Button _howTo = null!;
 	private string _title = "";
 	private bool _levelOnly;
+	private bool _modesLocked;
 	private int _dialogs;
 
 	public GameHud() : this(HudTheme.Warm) { }
@@ -301,6 +302,27 @@ public partial class GameHud : CanvasLayer
 
 	public void SetUndoVisible(bool visible) => _undo.Visible = visible;
 
+	/// <summary>
+	/// Locks the mode and level buttons while a game is under way (they dim, and a tap explains),
+	/// so the level can only change between games.
+	/// </summary>
+	public void SetModesLocked(bool locked)
+	{
+		if (_modesLocked == locked)
+			return;
+		_modesLocked = locked;
+		foreach (var button in new[] { _pvp, _pvc })
+			if (button != null)
+				button.Modulate = new Color(1, 1, 1, locked ? 0.5f : 1f);
+	}
+
+	private bool LockedNotice()
+	{
+		if (_modesLocked)
+			Dialog("", _levelOnly ? "The level can be changed between games." : "The mode and level can be changed between games.", ("OK", true, null));
+		return _modesLocked;
+	}
+
 	public void SetRestartVisible(bool visible)
 	{
 		if (_restart != null)
@@ -336,8 +358,16 @@ public partial class GameHud : CanvasLayer
 			Widgets.Anchor(_pvc, Control.LayoutPreset.CenterBottom, left: 10, right: 330, top: -110, bottom: -46);
 		AddChild(_pvc);
 
-		_pvp.Pressed += () => ChooseMode(GameMode.PlayerVsPlayer, difficulty);
-		_pvc.Pressed += () => Widgets.FadeIn(_difficultyPopup!);
+		_pvp.Pressed += () =>
+		{
+			if (!LockedNotice())
+				ChooseMode(GameMode.PlayerVsPlayer, difficulty);
+		};
+		_pvc.Pressed += () =>
+		{
+			if (!LockedNotice())
+				Widgets.FadeIn(_difficultyPopup!);
+		};
 
 		// Transparent full-screen catcher: a tap anywhere outside the three buttons closes it.
 		var catcher = new Control { MouseFilter = Control.MouseFilterEnum.Stop };
